@@ -41,7 +41,7 @@ public class TcAsyncGetSampler
 //    private String includePoolTime      =   "TcAsyncInsertSampler.includePoolTime";
 
     public static long DEFAULT_POOL_TIMEOUT = 5000; //5ms
-    public static String ERROR_RC = "500";
+    public static final String ERROR_RC = "500";
     private static ConcurrentLinkedQueue<SampleResult> asyncQueue = null;
 
     public TcAsyncGetSampler() {
@@ -150,7 +150,8 @@ public class TcAsyncGetSampler
 
         SampleResult newResult = new SampleResult();
 
-        TcInstance tcInstance = null;
+        int instance_id = -1;
+		TcInstance tcInstance = null;
 
         try {
 
@@ -186,26 +187,17 @@ public class TcAsyncGetSampler
 //                ));
 //            }
 
-//            if(getIncludePoolTime())    newResult.sampleStart();
             try {
-                tcInstance = TcSourceElement.getSource(getSource()).getInstance(getPoolTimeoutAsLong());
-//                if(getIncludePoolTime())    newResult.latencyEnd();
-            } catch (PoolTimeoutException e) {
-//                if(getIncludePoolTime())    newResult.sampleEnd();
-                TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
-                newResult.setResponseData(e.toString().getBytes());
-                newResult.setResponseCode(ERROR_RC);
-                newResult.setSuccessful(false);
+				instance_id = TcSourceElement.getSource(getSource()).getFreeInstanceId();
+                tcInstance = TcSourceElement.getSource(getSource()).getInstance(instance_id);
             } catch (TException e) {
-//                if(getIncludePoolTime())    newResult.sampleEnd();
-                TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                 newResult.setResponseData(e.toString().getBytes());
                 newResult.setResponseCode(ERROR_RC);
                 newResult.setSuccessful(false);
                 tcInstance = null;
             } catch (FailureKeySpace failureKeySpace) {
-//                if(getIncludePoolTime())    newResult.sampleEnd();
-                TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                 newResult.setResponseData(failureKeySpace.toString().getBytes());
                 newResult.setResponseCode(ERROR_RC);
                 newResult.setSuccessful(false);
@@ -219,46 +211,42 @@ public class TcAsyncGetSampler
                     client.get(key,
                             columnPath,
                             ConsistencyLevel.valueOf(getConsistencyLevel()),
-                            new TcGetCallback(newResult, asyncQueue, TcSourceElement.getSource(getSource()), tcInstance, getNotifyOnlyArgentums())
+                            new TcGetCallback(newResult, asyncQueue, TcSourceElement.getSource(getSource()), instance_id, getNotifyOnlyArgentums())
                             );
-//                    client.insert(key,
-//                            new ColumnParent(!getColumnParent().isEmpty() ? getColumnParent() : ""),
-//                            column,
-//                            ConsistencyLevel.valueOf(getConsistencyLevel()),
-//                            new TcInsertCallback(newResult, asyncQueue, TcSourceElement.getSource(getSource()), tcInstance, getNotifyOnlyArgentums())
-//                    );
-                    //newResult.latencyEnd();
                 } catch (IllegalStateException ise) {
                     newResult.sampleEnd();
-                    TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                    TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                     newResult.setResponseData(ise.toString().getBytes());
                     newResult.setResponseCode(ERROR_RC);
                     newResult.setSuccessful(false);
                 } catch (TException e) {
                     newResult.sampleEnd();
-                    TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                    TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                     newResult.setResponseData(e.toString().getBytes());
                     newResult.setResponseCode(ERROR_RC);
                     newResult.setSuccessful(false);
                 }
             } else {
+				TcSourceElement.getSource(getSource()).releaseInstance(instance_id);
                 newResult.setResponseCode(HTTPCodes.BAD_REQUEST_400);
                 newResult.setSuccessful(false);
             }
         } catch (IOException e) {
             newResult.setResponseData(e.toString().getBytes());
-            TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+            TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
             newResult.setResponseCode(ERROR_RC);
             newResult.setSuccessful(false);
         } catch (NotFoundHostException e) {
+			TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
             newResult.setResponseData(e.toString().getBytes());
             newResult.setResponseCode(ERROR_RC);
             newResult.setSuccessful(false);
         } catch (InterruptedException e) {
-            newResult.setResponseData(e.toString().getBytes());
-            newResult.setResponseCode(ERROR_RC);
-            newResult.setSuccessful(false);
-        } finally {
+			TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
+			newResult.setResponseData(e.toString().getBytes());
+			newResult.setResponseCode(ERROR_RC);
+			newResult.setSuccessful(false);
+		} finally {
             if(!newResult.isSuccessful()) {
                 if(getNotifyOnlyArgentums()) ArgentumListener.sampleOccured(new SampleEvent(newResult, null));
                 else    while(!asyncQueue.add(newResult)){}

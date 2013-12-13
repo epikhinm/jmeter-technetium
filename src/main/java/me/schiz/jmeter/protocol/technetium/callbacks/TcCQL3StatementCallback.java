@@ -2,7 +2,6 @@ package me.schiz.jmeter.protocol.technetium.callbacks;
 
 import me.schiz.jmeter.argentum.reporters.ArgentumListener;
 import me.schiz.jmeter.protocol.technetium.pool.NetflixUtils;
-import me.schiz.jmeter.protocol.technetium.pool.TcInstance;
 import me.schiz.jmeter.protocol.technetium.pool.TcPool;
 import me.schiz.jmeter.protocol.technetium.samplers.TcCQL3StatementSampler;
 import org.apache.cassandra.thrift.*;
@@ -18,19 +17,27 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class TcCQL3StatementCallback implements AsyncMethodCallback<Cassandra.AsyncClient.execute_cql3_query_call> {
     private static final Logger log = LoggingManager.getLoggerForClass();
-    private static String separator = "========================================";
+    private static final String LINE = "========================================";
 
     private SampleResult result;
     private ConcurrentLinkedQueue<SampleResult> queue;
     private TcPool pool;
-    private TcInstance instance;
+    private int instance_id;
     private boolean notifyOnlyArgentumListeners;
 
-    public TcCQL3StatementCallback(SampleResult result, ConcurrentLinkedQueue<SampleResult> asyncQueue, TcPool pool, TcInstance instance, boolean notifyOnlyArgentumListeners) {
+	private static final String EMPTY_STRING = "(empty)";
+	private static final String NULL_STRING = "(null)";
+	private static final String SEPARATOR = System.lineSeparator();
+
+    public TcCQL3StatementCallback(SampleResult result,
+								   ConcurrentLinkedQueue<SampleResult> asyncQueue,
+								   TcPool pool,
+								   int instance_id,
+								   boolean notifyOnlyArgentumListeners) {
         this.result = result;
         this.queue = asyncQueue;
         this.pool = pool;
-        this.instance = instance;
+        this.instance_id = instance_id;
         this.notifyOnlyArgentumListeners = notifyOnlyArgentumListeners;
     }
     @Override
@@ -43,22 +50,23 @@ public class TcCQL3StatementCallback implements AsyncMethodCallback<Cassandra.As
             List<CqlRow> rows= cqlResult.getRows();
             if(rows != null) {
                 if(rows.size() == 0) {
-                    _response.append("EMPTY RESPONSE");
+                    _response.append(EMPTY_STRING);
                 }
                 for(CqlRow row : cqlResult.getRows()) {
-                    _response.append(separator + "\n");
+                    _response.append(LINE);
+					_response.append(SEPARATOR);
                     _response.append("key: ");
                     _response.append(new String(row.getKey()));
-                    _response.append("\n");
+                    _response.append(SEPARATOR);
                     for(Column col : row.getColumns()) {
                         _response.append(new String(col.getName()));
                         _response.append(" : ");
                         _response.append(new String(col.getValue()));
-                        _response.append("\n");
+                        _response.append(SEPARATOR);
                     }
-                    _response.append("\n");
+                    _response.append(SEPARATOR);
                 }
-            } else _response.append("NULL RESPONSE");
+            } else _response.append(NULL_STRING);
             this.result.setResponseData(_response.toString().getBytes());
             this.result.setSuccessful(true);
         } catch (InvalidRequestException e) {
@@ -83,12 +91,11 @@ public class TcCQL3StatementCallback implements AsyncMethodCallback<Cassandra.As
             this.result.setSuccessful(false);
         } finally {
             try {
-                pool.releaseInstance(instance);
+                pool.releaseInstance(instance_id);
             } catch (InterruptedException e) {
                 log.warn("cannot release instance. I'll destroy him! ", e);
-                pool.destroyInstance(instance);
+                pool.destroyInstance(instance_id);
             }
-//            while(!queue.add(this.result)) {}
             if(notifyOnlyArgentumListeners) ArgentumListener.sampleOccured(new SampleEvent(this.result, null));
             else while(!queue.add(this.result)) {}
         }
@@ -101,12 +108,7 @@ public class TcCQL3StatementCallback implements AsyncMethodCallback<Cassandra.As
         this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
         this.result.setSuccessful(false);
 
-        try {
-            pool.releaseInstance(instance);
-        } catch (InterruptedException ie) {
-            log.warn("cannot release instance. I'll destroy him! ", ie);
-            pool.destroyInstance(instance);
-        }
+        pool.destroyInstance(instance_id);
 
         while(!queue.add(this.result)) {}
     }

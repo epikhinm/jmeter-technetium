@@ -39,7 +39,6 @@ public class TcAsyncInsertSampler
     private String poolTimeout          =   "TcAsyncInsertSampler.poolTimeout";
     private String consistencyLevel     =   "TcAsyncInsertSampler.consistencyLevel";
     private String notifyOnlyArgentums  =   "TcAsyncInsertSampler.notifyOnlyArgentums";
-//    private String includePoolTime      =   "TcAsyncInsertSampler.includePoolTime";
 
     public static long DEFAULT_POOL_TIMEOUT = 5000; //5ms
     public static String ERROR_RC = "500";
@@ -151,6 +150,7 @@ public class TcAsyncInsertSampler
 
         SampleResult newResult = new SampleResult();
 
+		int instance_id = -1;
         TcInstance tcInstance = null;
 
         try {
@@ -178,24 +178,19 @@ public class TcAsyncInsertSampler
 
 //            if(getIncludePoolTime())    newResult.sampleStart();
             try {
-                tcInstance = TcSourceElement.getSource(getSource()).getInstance(getPoolTimeoutAsLong());
+				instance_id = TcSourceElement.getSource(getSource()).getFreeInstanceId();
+                tcInstance = TcSourceElement.getSource(getSource()).getInstance(instance_id);
 //                if(getIncludePoolTime())    newResult.latencyEnd();
-            } catch (PoolTimeoutException e) {
-//                if(getIncludePoolTime())    newResult.sampleEnd();
-                TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
-                newResult.setResponseData(e.toString().getBytes());
-                newResult.setResponseCode(ERROR_RC);
-                newResult.setSuccessful(false);
             } catch (TException e) {
 //                if(getIncludePoolTime())    newResult.sampleEnd();
-                TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                 newResult.setResponseData(e.toString().getBytes());
                 newResult.setResponseCode(ERROR_RC);
                 newResult.setSuccessful(false);
                 tcInstance = null;
             } catch (FailureKeySpace failureKeySpace) {
 //                if(getIncludePoolTime())    newResult.sampleEnd();
-                TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                 newResult.setResponseData(failureKeySpace.toString().getBytes());
                 newResult.setResponseCode(ERROR_RC);
                 newResult.setSuccessful(false);
@@ -210,18 +205,18 @@ public class TcAsyncInsertSampler
                             new ColumnParent(!getColumnParent().isEmpty() ? getColumnParent() : ""),
                             column,
                             ConsistencyLevel.valueOf(getConsistencyLevel()),
-                                new TcInsertCallback(newResult, asyncQueue, TcSourceElement.getSource(getSource()), tcInstance, getNotifyOnlyArgentums())
+                                new TcInsertCallback(newResult, asyncQueue, TcSourceElement.getSource(getSource()), instance_id, getNotifyOnlyArgentums())
                             );
                     //newResult.latencyEnd();
                 } catch (IllegalStateException ise) {
                     newResult.sampleEnd();
-                    TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                    TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                     newResult.setResponseData(ise.toString().getBytes());
                     newResult.setResponseCode(ERROR_RC);
                     newResult.setSuccessful(false);
                 } catch (TException e) {
                     newResult.sampleEnd();
-                    TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                    TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                     newResult.setResponseData(e.toString().getBytes());
                     newResult.setResponseCode(ERROR_RC);
                     newResult.setSuccessful(false);
@@ -232,14 +227,10 @@ public class TcAsyncInsertSampler
             }
         } catch (IOException e) {
             newResult.setResponseData(e.toString().getBytes());
-            TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+            TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
             newResult.setResponseCode(ERROR_RC);
             newResult.setSuccessful(false);
         } catch (NotFoundHostException e) {
-            newResult.setResponseData(e.toString().getBytes());
-            newResult.setResponseCode(ERROR_RC);
-            newResult.setSuccessful(false);
-        } catch (InterruptedException e) {
             newResult.setResponseData(e.toString().getBytes());
             newResult.setResponseCode(ERROR_RC);
             newResult.setSuccessful(false);

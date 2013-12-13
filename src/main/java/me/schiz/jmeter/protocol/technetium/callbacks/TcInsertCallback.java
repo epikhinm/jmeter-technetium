@@ -21,19 +21,20 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class TcInsertCallback implements AsyncMethodCallback<Cassandra.AsyncClient.insert_call> {
     private static final Logger log = LoggingManager.getLoggerForClass();
-    private static String separator = "========================================";
+    private static final String LINE = "========================================";
 
     private SampleResult result;
     private ConcurrentLinkedQueue<SampleResult> queue;
     private TcPool pool;
-    private TcInstance instance;
+	private int instance_id;
     private boolean notifyOnlyArgentumListeners;
 
-    public TcInsertCallback(SampleResult result, ConcurrentLinkedQueue<SampleResult> asyncQueue, TcPool pool, TcInstance instance, boolean notifyOnlyArgentumListeners) {
+    public TcInsertCallback(SampleResult result, ConcurrentLinkedQueue<SampleResult> asyncQueue, TcPool pool,
+							int instance_id, boolean notifyOnlyArgentumListeners) {
         this.result = result;
         this.queue = asyncQueue;
         this.pool = pool;
-        this.instance = instance;
+        this.instance_id = instance_id;
         this.notifyOnlyArgentumListeners = notifyOnlyArgentumListeners;
     }
     @Override
@@ -64,10 +65,10 @@ public class TcInsertCallback implements AsyncMethodCallback<Cassandra.AsyncClie
             this.result.setSuccessful(false);
         } finally {
             try {
-                pool.releaseInstance(instance);
+                pool.releaseInstance(instance_id);
             } catch (InterruptedException e) {
                 log.warn("cannot release instance. I'll destroy him! ", e);
-                pool.destroyInstance(instance);
+                pool.destroyInstance(instance_id);
             }
             if(notifyOnlyArgentumListeners) ArgentumListener.sampleOccured(new SampleEvent(this.result, null));
             else while(!queue.add(this.result)) {}
@@ -83,14 +84,7 @@ public class TcInsertCallback implements AsyncMethodCallback<Cassandra.AsyncClie
         result.setSuccessful(false);
 
         //always destroy bad instance
-        pool.destroyInstance(instance);
-
-        try {
-            pool.releaseInstance(instance);
-        } catch (InterruptedException ie) {
-            log.warn("cannot release instance. I'll destroy him! ", ie);
-            pool.destroyInstance(instance);
-        }
+        pool.destroyInstance(instance_id);
 
         if(notifyOnlyArgentumListeners) {
             ArgentumListener.sampleOccured(new SampleEvent(this.result, null));

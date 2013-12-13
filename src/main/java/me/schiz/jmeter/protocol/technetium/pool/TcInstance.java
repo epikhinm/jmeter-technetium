@@ -9,18 +9,12 @@ import org.apache.thrift.transport.TTransport;
 import java.io.IOException;
 
 public class TcInstance {
-    private static volatile long _id = 0;
-    private volatile long id;
-
-    protected TNonblockingSocket transport;
-    protected Cassandra.AsyncClient asyncClient;
-    protected volatile boolean state;
+    public TNonblockingSocket transport;
+    public Cassandra.AsyncClient asyncClient;
 
     public TcInstance(String host, int port, int timeout, TAsyncClientManager clientManager, TProtocolFactory protocolFactory) throws IOException {
         transport = new TNonblockingSocket(host, port, timeout);
         asyncClient = new Cassandra.AsyncClient(protocolFactory, clientManager, transport);
-        state = false;
-        id = ++_id;
     }
 
     public TTransport getTransport() {
@@ -29,13 +23,5 @@ public class TcInstance {
 
     public Cassandra.AsyncClient getClient() {
         return asyncClient;
-    }
-
-    public long getId() {
-        return id;
-    }
-
-    public void release() {
-        state = true;
     }
 }

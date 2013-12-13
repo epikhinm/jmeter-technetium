@@ -29,7 +29,7 @@ public class TcSourceElement extends ConfigTestElement
 
 
     public int getTimeout() {
-        return maxSelectors;
+        return timeout;
     }
     public void setTimeout(int timeout) {
         this.timeout = timeout;
@@ -67,7 +67,7 @@ public class TcSourceElement extends ConfigTestElement
         ArrayList<AbstractMap.SimpleEntry<String, Integer>> list = new ArrayList<AbstractMap.SimpleEntry<String, Integer>>();
 
         for(String row : rawEntries) {
-            String[] cols = row.split(":");
+            String[] cols = row.trim().split(":");
             int port;
             try{
                 port = cols.length > 1 ? Integer.parseInt(cols[1]) : DEFAULT_PORT;
@@ -111,7 +111,7 @@ public class TcSourceElement extends ConfigTestElement
                     pools.get(source).addServer(row.getKey(), row.getValue());
                 }
 
-                log.info("added new source `" + source + "` (s:" +maxSelectors + ",i: " + maxInstances + ",t: "+ timeout + ")");
+                log.info("added new source `" + source + "` (selectors:" +maxSelectors + ",instances: " + maxInstances + ",timeout: "+ timeout + ")");
             } catch (IOException e) {
                 log.error("cannot create TcPool" + e.getMessage());
             }

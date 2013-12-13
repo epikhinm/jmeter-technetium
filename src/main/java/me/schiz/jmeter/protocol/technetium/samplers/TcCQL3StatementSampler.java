@@ -33,9 +33,8 @@ public class TcCQL3StatementSampler
     private String consistencyLevel = "TcCQL3StatementSampler.consistencyLevel";
     private String notifyOnlyArgentums  =   "TcAsyncInsertSampler.notifyOnlyArgentums";
 
-
     public static long DEFAULT_POOL_TIMEOUT = 5000; //5ms
-    public static String ERROR_RC = "500";
+    public static final String ERROR_RC = "500";
     private static ConcurrentLinkedQueue<SampleResult>  asyncQueue = null;
 
     public TcCQL3StatementSampler() {
@@ -88,7 +87,8 @@ public class TcCQL3StatementSampler
         if(!getNotifyOnlyArgentums())   asyncResult = asyncQueue.poll();
         SampleResult newResult = new SampleResult();
 
-        TcInstance tcInstance = null;
+        int instance_id = -1;
+		TcInstance tcInstance = null;
 
         try {
             newResult.setSampleLabel(getName());
@@ -101,16 +101,12 @@ public class TcCQL3StatementSampler
 
             newResult.sampleStart();
             try {
-                tcInstance = TcSourceElement.getSource(getSource()).getInstance(getPoolTimeoutAsLong());
-            } catch (PoolTimeoutException e) {
-                TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
-                newResult.setResponseData(e.toString().getBytes());
-                newResult.setResponseCode(ERROR_RC);
-                newResult.setSuccessful(false);
-            } catch (TException e) {
+            	instance_id = TcSourceElement.getSource(getSource()).getFreeInstanceId();
+				tcInstance = TcSourceElement.getSource(getSource()).getInstance(instance_id);
+			} catch (TException e) {
                 e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
             } catch (FailureKeySpace failureKeySpace) {
-                TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                 newResult.setResponseData(failureKeySpace.toString().getBytes());
                 newResult.setResponseCode(ERROR_RC);
                 newResult.setSuccessful(false);
@@ -123,22 +119,22 @@ public class TcCQL3StatementSampler
 
                     client.execute_cql3_query(queryBB,
                             Compression.NONE,
-                            ConsistencyLevel.THREE,
+                            ConsistencyLevel.ONE,
                             new TcCQL3StatementCallback(newResult,
                                     asyncQueue,
                                     TcSourceElement.getSource(getSource()),
-                                    tcInstance,
+                                    instance_id,
                                     getNotifyOnlyArgentums())
                     );
                 } catch (IllegalStateException ise) {
                     ise.printStackTrace();
-                    TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                    TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                     newResult.setResponseData(ise.toString().getBytes());
                     newResult.setResponseCode(ERROR_RC);
                     newResult.setSuccessful(false);
                 } catch (TException e) {
                     e.printStackTrace();
-                    TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+                    TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
                     newResult.setResponseData(e.getMessage().getBytes());
                     newResult.setResponseCode(ERROR_RC);
                     newResult.setSuccessful(false);
@@ -146,14 +142,10 @@ public class TcCQL3StatementSampler
             }
         } catch (IOException e) {
             newResult.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
-            TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
+            TcSourceElement.getSource(getSource()).destroyInstance(instance_id);
             newResult.setResponseCode(ERROR_RC);
             newResult.setSuccessful(false);
         } catch (NotFoundHostException e) {
-            newResult.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
-            newResult.setResponseCode(ERROR_RC);
-            newResult.setSuccessful(false);
-        } catch (InterruptedException e) {
             newResult.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
             newResult.setResponseCode(ERROR_RC);
             newResult.setSuccessful(false);
