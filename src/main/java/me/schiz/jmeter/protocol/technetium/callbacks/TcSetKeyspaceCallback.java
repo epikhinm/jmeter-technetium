@@ -24,9 +24,7 @@ public class TcSetKeyspaceCallback implements AsyncMethodCallback<Cassandra.Asyn
 
     @Override
     public void onComplete(Cassandra.AsyncClient.set_keyspace_call response) {
-        log.warn("set keyspace ok");
         synchronized (monitor) {
-            //response.write_args();
             flag.set(SUCCESS_STATUS);
             monitor.notify();
         }
@@ -35,9 +33,8 @@ public class TcSetKeyspaceCallback implements AsyncMethodCallback<Cassandra.Asyn
     @Override
     public void onError(Exception exception) {
         log.warn("set keyspace exception " , exception);
-        System.out.println(exception);
+        flag.set(FAILURE_STATUS);
         synchronized (monitor) {
-            flag.set(FAILURE_STATUS);
             monitor.notify();
         }
     }

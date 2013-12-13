@@ -9,14 +9,13 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TcPool {
     protected ConcurrentHashMap<Long, TcInstance> instanceMap;
-    protected LinkedBlockingQueue<Long> freeInstances;
+    protected ConcurrentLinkedQueue<Long> freeInstances;
     protected String keyspace;
     protected int maxManagers;
     protected int maxInstances;
@@ -27,14 +26,12 @@ public class TcPool {
     protected ArrayList<AbstractMap.SimpleEntry<String, Integer>> hosts;
     protected int timeout;
 
-    private int DEFAULT_POLL_TIMEOUT  = 100; //100mks
-
     public TcPool(String keyspace, int maxManagers, int maxInstances, int timeout) throws IOException {
         this.keyspace = keyspace;
         this.maxManagers = maxManagers;
         this.maxInstances = maxInstances;
         this.instanceMap = new ConcurrentHashMap<Long, TcInstance>(maxInstances);
-        this.freeInstances = new LinkedBlockingQueue<Long>(maxInstances);
+        this.freeInstances = new ConcurrentLinkedQueue<Long>();
         this.hosts = new ArrayList<AbstractMap.SimpleEntry<String, Integer>>();
 
         this.initInstances = 0;
@@ -63,8 +60,6 @@ public class TcPool {
 
 
     public TcInstance getInstance(long pollTimeout) throws IOException, NotFoundHostException, InterruptedException, PoolTimeoutException, TException, FailureKeySpace {
-        //System.out.println("m:" + maxInstances + " i:" + initInstances + " f:" + freeInstances.size());
-
         TcInstance instance;
         if(initInstances == 0) {
             synchronized (this.getClass()) {
@@ -85,14 +80,25 @@ public class TcPool {
                     instanceMap.put(instance.getId(), instance);
                     initInstances++;
                     return instance;
-               } else return getInstance(pollTimeout);
+               }
             }
+            return getInstance(pollTimeout);
         }
 
         Long freeId;
 
         if(initInstances == maxInstances) {
-            freeId = freeInstances.poll(pollTimeout, TimeUnit.MICROSECONDS);
+            //freeId = freeInstances.poll(pollTimeout, TimeUnit.MICROSECONDS);
+            freeId = freeInstances.poll();
+
+            if(freeId == null) {
+                synchronized (freeInstances) {
+                    while((freeId = freeInstances.poll()) == null) {
+                        freeInstances.wait(1);
+                        if(initInstances < maxInstances)   return getInstance(pollTimeout);
+                    }
+                }
+            }
             if(freeId == null) throw new PoolTimeoutException();
             else {
                 instance = instanceMap.get(freeId);
@@ -114,7 +120,7 @@ public class TcPool {
 
                     instance.getClient().set_keyspace(this.keyspace, new TcSetKeyspaceCallback(flag, monitor));
                     synchronized (monitor) {
-                        while(flag.get() == TcSetKeyspaceCallback.PENDING_STATUS) { monitor.wait();}
+                        while(flag.get() == TcSetKeyspaceCallback.PENDING_STATUS) { monitor.wait(10);}
                     }
 
                     if(flag.get() == TcSetKeyspaceCallback.FAILURE_STATUS) throw new FailureKeySpace();
@@ -123,63 +129,18 @@ public class TcPool {
                     initInstances++;
                     return instance;
                 }
-
             }
-
         }
     }
-
-//    public TcInstance getInstance(long pollTimeout) throws IOException, NotFoundHostException, InterruptedException, PoolTimeoutException {
-//        System.out.println("m: " + maxInstances + "i: " + initInstances + " f:" + freeInstances.size());
-//        if(initInstances == 0) {
-//            synchronized (this.getClass()) {
-//                if(initInstances == 0) {
-//                    AbstractMap.SimpleEntry<String, Integer> host = getRandomHost();
-//                    TcInstance instance = new TcInstance(host.getKey(), host.getValue(), this.timeout, this.managersPool.getClientManager(), this.protocolFactory);
-//                    instanceMap.put(instance.getId(), instance);
-//                    initInstances++;
-//                    return instance;
-//               }
-//            }
-//        } else {
-//            Long freeId;
-//            TcInstance instance;
-//            if(initInstances != maxInstances) {
-//                freeId = freeInstances.poll(pollTimeout, TimeUnit.MICROSECONDS);
-//                if(freeId == null) {
-//                    instance = new TcInstance(getRandomHost().getKey(), getRandomHost().getValue(), this.timeout, this.managersPool.getClientManager(), this.protocolFactory);
-//                    initInstances++;
-//                    return instance;
-//                } else {
-//                    instance = instanceMap.get(freeId);
-//                    instance.state = true;
-//                }
-//            } else {
-//                synchronized (this.getClass()) {
-//                    if(initInstances == maxInstances) {
-//                        freeId = freeInstances.poll(pollTimeout, TimeUnit.MICROSECONDS);
-//                        if(freeId == null) throw new PoolTimeoutException();
-//                        instance = instanceMap.get(freeId);
-//                        instance.state = true;
-//                    } else {
-//                        AbstractMap.SimpleEntry<String, Integer> host = getRandomHost();
-//                        instance = new TcInstance(host.getKey(), host.getValue(), this.timeout, this.managersPool.getClientManager(), this.protocolFactory);
-//                        instanceMap.put(instance.getId(), instance);
-//                        initInstances++;
-//                        return instance;
-//                    }
-//                }
-//            }
-//
-//            return instance;
-//        }
-//        return null;
-//    }
 
     public void releaseInstance(TcInstance instance) throws InterruptedException {
         instance.release();
         if(!instanceMap.containsKey(instance.getId())) return;
-        freeInstances.put(instance.getId());
+        //freeInstances.put(instance.getId());
+        while(freeInstances.add(instance.getId()) != true) {}
+        synchronized (freeInstances) {
+            freeInstances.notify();
+        }
     }
 
     public void destroyInstance(TcInstance instance) {

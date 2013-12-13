@@ -1,16 +1,15 @@
 package me.schiz.jmeter.protocol.technetium.samplers;
 
+import me.schiz.jmeter.argentum.reporters.ArgentumListener;
 import me.schiz.jmeter.protocol.technetium.callbacks.TcCQL3StatementCallback;
 import me.schiz.jmeter.protocol.technetium.config.TcSourceElement;
-import me.schiz.jmeter.protocol.technetium.pool.FailureKeySpace;
-import me.schiz.jmeter.protocol.technetium.pool.NotFoundHostException;
-import me.schiz.jmeter.protocol.technetium.pool.PoolTimeoutException;
-import me.schiz.jmeter.protocol.technetium.pool.TcInstance;
+import me.schiz.jmeter.protocol.technetium.pool.*;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.jmeter.samplers.AbstractSampler;
 import org.apache.jmeter.samplers.Entry;
+import org.apache.jmeter.samplers.SampleEvent;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.testbeans.TestBean;
 import org.apache.jorphan.logging.LoggingManager;
@@ -32,6 +31,7 @@ public class TcCQL3StatementSampler
     private String poolTimeout = "TcCQL3StatementSampler.poolTimeout";
     private String compression = "TcCQL3StatementSampler.compression";
     private String consistencyLevel = "TcCQL3StatementSampler.consistencyLevel";
+    private String notifyOnlyArgentums  =   "TcAsyncInsertSampler.notifyOnlyArgentums";
 
 
     public static long DEFAULT_POOL_TIMEOUT = 5000; //5ms
@@ -75,10 +75,17 @@ public class TcCQL3StatementSampler
     public void setQuery(String query) {
         setProperty(this.query, query);
     }
+    public boolean getNotifyOnlyArgentums() {
+        return getPropertyAsBoolean(notifyOnlyArgentums);
+    }
+    public void setNotifyOnlyArgentums(boolean notifyOnlyArgentums) {
+        setProperty(this.notifyOnlyArgentums, notifyOnlyArgentums);
+    }
 
     @Override
     public SampleResult sample(Entry entry) {
-        SampleResult asyncResult = asyncQueue.poll();
+        SampleResult asyncResult = null;
+        if(!getNotifyOnlyArgentums())   asyncResult = asyncQueue.poll();
         SampleResult newResult = new SampleResult();
 
         TcInstance tcInstance = null;
@@ -120,7 +127,8 @@ public class TcCQL3StatementSampler
                             new TcCQL3StatementCallback(newResult,
                                     asyncQueue,
                                     TcSourceElement.getSource(getSource()),
-                                    tcInstance)
+                                    tcInstance,
+                                    getNotifyOnlyArgentums())
                     );
                 } catch (IllegalStateException ise) {
                     ise.printStackTrace();
@@ -137,23 +145,22 @@ public class TcCQL3StatementSampler
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            newResult.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
             TcSourceElement.getSource(getSource()).destroyInstance(tcInstance);
-            newResult.setResponseData(e.getMessage().getBytes());
             newResult.setResponseCode(ERROR_RC);
             newResult.setSuccessful(false);
         } catch (NotFoundHostException e) {
-            e.printStackTrace();
-            newResult.setResponseData(e.getMessage().getBytes());
+            newResult.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
             newResult.setResponseCode(ERROR_RC);
             newResult.setSuccessful(false);
         } catch (InterruptedException e) {
-            e.printStackTrace();
-            newResult.setResponseData(e.getMessage().getBytes());
+            newResult.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
             newResult.setResponseCode(ERROR_RC);
             newResult.setSuccessful(false);
         } finally {
-            if(!newResult.isSuccessful())   while(!asyncQueue.add(newResult)){}
+            //if(!newResult.isSuccessful())   while(!asyncQueue.add(newResult)){}
+            if(getNotifyOnlyArgentums() && !newResult.isSuccessful()) ArgentumListener.sampleOccured(new SampleEvent(newResult, null));
+            else    while(!asyncQueue.add(newResult)){}
         }
 
         return asyncResult;

@@ -12,7 +12,8 @@ public class TcCQL3StatementSamplerBeanInfo
         createPropertyGroup("options", new String[]{
                 "source",
                 "query",
-                "poolTimeout"});
+                "poolTimeout",
+                "notifyOnlyArgentums"});
 
         PropertyDescriptor p = property("source");
         p.setValue(NOT_UNDEFINED, Boolean.TRUE);
@@ -25,5 +26,9 @@ public class TcCQL3StatementSamplerBeanInfo
         p = property("poolTimeout");
         p.setValue(NOT_UNDEFINED, Boolean.TRUE);
         p.setValue(DEFAULT, String.valueOf(TcCQL3StatementSampler.DEFAULT_POOL_TIMEOUT));
+
+        p = property("notifyOnlyArgentums");
+        p.setValue(NOT_UNDEFINED, Boolean.FALSE);
+        p.setValue(DEFAULT, "");
     }
 }

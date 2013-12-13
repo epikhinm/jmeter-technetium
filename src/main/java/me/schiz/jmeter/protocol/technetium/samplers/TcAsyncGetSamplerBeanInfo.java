@@ -3,16 +3,16 @@ package me.schiz.jmeter.protocol.technetium.samplers;
 import org.apache.jmeter.testbeans.BeanInfoSupport;
 import java.beans.PropertyDescriptor;
 
-public class TcAsyncInsertSamplerBeanInfo
-        extends BeanInfoSupport  {
-    public TcAsyncInsertSamplerBeanInfo() {
-        super(TcAsyncInsertSampler.class);
+public class TcAsyncGetSamplerBeanInfo
+        extends BeanInfoSupport {
+    public TcAsyncGetSamplerBeanInfo() {
+        super(TcAsyncGetSampler.class);
 
         createPropertyGroup("options", new String[]{
                 "source",
                 "poolTimeout",
                 "notifyOnlyArgentums"});
-                //"includePoolTime"});
+        //"includePoolTime"});
 
         createPropertyGroup("request", new String[]{
                 "key",
@@ -20,9 +20,6 @@ public class TcAsyncInsertSamplerBeanInfo
                 "columnParent",
                 "column",
                 "columnSerializerType",
-                "timestamp",
-                "value",
-                "valueSerializerType",
                 "consistencyLevel"});
 
         PropertyDescriptor p = property("source");

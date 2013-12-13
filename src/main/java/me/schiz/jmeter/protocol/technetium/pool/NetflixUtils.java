@@ -10,7 +10,23 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public class NetflixSerializer {
+public class NetflixUtils {
+    public static final String NEW_LINE = System.getProperty("line.separator");
+
+    public static String getStackTrace(Throwable aThrowable)
+    {
+        final StringBuilder result = new StringBuilder("ERROR: ");
+        result.append(aThrowable.toString());
+        result.append(NEW_LINE);
+        // add each element of the stack trace
+        for (StackTraceElement element : aThrowable.getStackTrace())
+        {
+            result.append(element.toString());
+            result.append(NEW_LINE);
+        }
+        return result.toString();
+    }
+
     @SuppressWarnings("rawtypes")
     public static Map<String, AbstractSerializer> serializers = new HashMap<String, AbstractSerializer>();
     static

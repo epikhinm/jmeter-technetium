@@ -2,12 +2,11 @@ package me.schiz.jmeter.protocol.technetium.samplers;
 
 import me.schiz.jmeter.argentum.reporters.ArgentumListener;
 import me.schiz.jmeter.protocol.technetium.HTTPCodes;
-import me.schiz.jmeter.protocol.technetium.callbacks.TcInsertCallback;
+import me.schiz.jmeter.protocol.technetium.callbacks.TcGetCallback;
 import me.schiz.jmeter.protocol.technetium.config.TcSourceElement;
 import me.schiz.jmeter.protocol.technetium.pool.*;
 import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.jmeter.samplers.AbstractSampler;
 import org.apache.jmeter.samplers.Entry;
@@ -22,7 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-public class TcAsyncInsertSampler
+public class TcAsyncGetSampler
         extends AbstractSampler
         implements TestBean {
     private static final Logger log = LoggingManager.getLoggerForClass();
@@ -33,9 +32,9 @@ public class TcAsyncInsertSampler
     private String columnParent         =   "TcAsyncInsertSampler.columnParent";
     private String column               =   "TcAsyncInsertSampler.column";
     private String columnSerializerType =   "TcAsyncInsertSampler.columnSerializerType";
-    private String timestamp            =   "TcAsyncInsertSampler.timestamp";
-    private String value                =   "TcAsyncInsertSampler.value";
-    private String valueSerializerType  =   "TcAsyncInsertSampler.valueSerializerType";
+//    private String timestamp            =   "TcAsyncInsertSampler.timestamp";
+//    private String value                =   "TcAsyncInsertSampler.value";
+//    private String valueSerializerType  =   "TcAsyncInsertSampler.valueSerializerType";
     private String poolTimeout          =   "TcAsyncInsertSampler.poolTimeout";
     private String consistencyLevel     =   "TcAsyncInsertSampler.consistencyLevel";
     private String notifyOnlyArgentums  =   "TcAsyncInsertSampler.notifyOnlyArgentums";
@@ -45,7 +44,7 @@ public class TcAsyncInsertSampler
     public static String ERROR_RC = "500";
     private static ConcurrentLinkedQueue<SampleResult> asyncQueue = null;
 
-    public TcAsyncInsertSampler() {
+    public TcAsyncGetSampler() {
         if(asyncQueue == null) {
             synchronized (TcAsyncInsertSampler.class) {
                 if(asyncQueue == null) {
@@ -92,21 +91,21 @@ public class TcAsyncInsertSampler
     public void setColumn(String column) {
         setProperty(this.column, column);
     }
-    public String getTimestamp() {
-        return getPropertyAsString(timestamp);
-    }
-    public Long getTimestampAsLong() {
-        return getPropertyAsLong(timestamp);
-    }
-    public void setTimestamp(String timestamp) {
-        setProperty(this.timestamp, timestamp);
-    }
-    public String getValue() {
-        return getPropertyAsString(value);
-    }
-    public void setValue(String value) {
-        setProperty(this.value, value);
-    }
+//    public String getTimestamp() {
+//        return getPropertyAsString(timestamp);
+//    }
+//    public Long getTimestampAsLong() {
+//        return getPropertyAsLong(timestamp);
+//    }
+//    public void setTimestamp(String timestamp) {
+//        setProperty(this.timestamp, timestamp);
+//    }
+//    public String getValue() {
+//        return getPropertyAsString(value);
+//    }
+//    public void setValue(String value) {
+//        setProperty(this.value, value);
+//    }
     public String getConsistencyLevel() {
         return getPropertyAsString(consistencyLevel);
     }
@@ -125,12 +124,12 @@ public class TcAsyncInsertSampler
     public void setColumnSerializerType(String columnSerializerType) {
         setProperty(this.columnSerializerType, columnSerializerType);
     }
-    public String getValueSerializerType() {
-        return getPropertyAsString(valueSerializerType, "AsciiSerializer");
-    }
-    public void setValueSerializerType(String valueSerializerType) {
-        setProperty(this.valueSerializerType, valueSerializerType);
-    }
+//    public String getValueSerializerType() {
+//        return getPropertyAsString(valueSerializerType, "AsciiSerializer");
+//    }
+//    public void setValueSerializerType(String valueSerializerType) {
+//        setProperty(this.valueSerializerType, valueSerializerType);
+//    }
     public boolean getNotifyOnlyArgentums() {
         return getPropertyAsBoolean(notifyOnlyArgentums);
     }
@@ -162,19 +161,30 @@ public class TcAsyncInsertSampler
                     NetflixUtils.convert(getKey(), getKeySerializerType())
             );
 
-            Column column = new Column();
-            if(!getColumn().isEmpty()) {
-                column.setName(NetflixUtils.serializers.get(getColumnSerializerType()).toBytes(
-                        NetflixUtils.convert(getColumn(), getColumnSerializerType())
-                ));
+//            Column column = new Column();
+//            if(!getColumn().isEmpty()) {
+//                column.setName(NetflixUtils.serializers.get(getColumnSerializerType()).toBytes(
+//                        NetflixUtils.convert(getColumn(), getColumnSerializerType())
+//                ));
+//            }
+            ColumnPath columnPath = new ColumnPath();
+            columnPath.setColumn_family(getColumnParent());
+
+            if(getColumn() != null && getColumnSerializerType() != null) {
+                if(!getColumn().isEmpty() && !getColumnSerializerType().isEmpty()) {
+                    columnPath.setColumn(NetflixUtils.serializers.get(getColumnSerializerType()).toBytes(
+                            NetflixUtils.convert(getColumn(), getColumnSerializerType())));
+                }
             }
-            if(getTimestamp().equalsIgnoreCase("NOW"))  column.setTimestamp(System.currentTimeMillis());
-            else column.setTimestamp(getTimestampAsLong());
-            if(!getValue().isEmpty()) {
-                column.setValue(NetflixUtils.serializers.get(getValueSerializerType()).toBytes(
-                        NetflixUtils.convert(getValue(), getValueSerializerType())
-                ));
-            }
+
+
+//            if(getTimestamp().equalsIgnoreCase("NOW"))  column.setTimestamp(System.currentTimeMillis());
+//            else column.setTimestamp(getTimestampAsLong());
+//            if(!getValue().isEmpty()) {
+//                column.setValue(NetflixUtils.serializers.get(getValueSerializerType()).toBytes(
+//                        NetflixUtils.convert(getValue(), getValueSerializerType())
+//                ));
+//            }
 
 //            if(getIncludePoolTime())    newResult.sampleStart();
             try {
@@ -206,12 +216,17 @@ public class TcAsyncInsertSampler
                 try {
                     newResult.sampleStart();
                     Cassandra.AsyncClient client = tcInstance.getClient();
-                    client.insert(key,
-                            new ColumnParent(!getColumnParent().isEmpty() ? getColumnParent() : ""),
-                            column,
+                    client.get(key,
+                            columnPath,
                             ConsistencyLevel.valueOf(getConsistencyLevel()),
-                                new TcInsertCallback(newResult, asyncQueue, TcSourceElement.getSource(getSource()), tcInstance, getNotifyOnlyArgentums())
+                            new TcGetCallback(newResult, asyncQueue, TcSourceElement.getSource(getSource()), tcInstance, getNotifyOnlyArgentums())
                             );
+//                    client.insert(key,
+//                            new ColumnParent(!getColumnParent().isEmpty() ? getColumnParent() : ""),
+//                            column,
+//                            ConsistencyLevel.valueOf(getConsistencyLevel()),
+//                            new TcInsertCallback(newResult, asyncQueue, TcSourceElement.getSource(getSource()), tcInstance, getNotifyOnlyArgentums())
+//                    );
                     //newResult.latencyEnd();
                 } catch (IllegalStateException ise) {
                     newResult.sampleEnd();
