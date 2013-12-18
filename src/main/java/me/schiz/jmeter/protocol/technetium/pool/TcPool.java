@@ -10,8 +10,6 @@ import org.apache.thrift.protocol.TProtocolFactory;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -90,6 +88,7 @@ public class TcPool {
 			}
 			if(flag.get() == TcSetKeyspaceCallback.FAILURE_STATUS) throw new FailureKeySpace();
 			instanceMap[instance_id] = instance;
+			log.info("created instance " + instance_id);
 		}
 		return instance;
 	}
@@ -108,6 +107,7 @@ public class TcPool {
 		} catch (InterruptedException e) {
 			log.error("can't release instance_id",e);
 		}
+		log.info("destroyed instance " + instance_id);
     }
 
     public void shutdown() {

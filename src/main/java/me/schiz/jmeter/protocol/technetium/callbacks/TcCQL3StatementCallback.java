@@ -12,6 +12,7 @@ import org.apache.log.Logger;
 import org.apache.thrift.TException;
 import org.apache.thrift.async.AsyncMethodCallback;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -28,88 +29,105 @@ public class TcCQL3StatementCallback implements AsyncMethodCallback<Cassandra.As
 	private static final String EMPTY_STRING = "(empty)";
 	private static final String NULL_STRING = "(null)";
 	private static final String SEPARATOR = System.lineSeparator();
+	private ByteBuffer query;
 
     public TcCQL3StatementCallback(SampleResult result,
 								   ConcurrentLinkedQueue<SampleResult> asyncQueue,
 								   TcPool pool,
 								   int instance_id,
-								   boolean notifyOnlyArgentumListeners) {
+								   boolean notifyOnlyArgentumListeners,
+								   ByteBuffer query) {
         this.result = result;
         this.queue = asyncQueue;
         this.pool = pool;
         this.instance_id = instance_id;
         this.notifyOnlyArgentumListeners = notifyOnlyArgentumListeners;
+		this.query = query;
     }
     @Override
     public void onComplete(Cassandra.AsyncClient.execute_cql3_query_call response) {
-        this.result.sampleEnd();
+		try {
+			this.result.sampleEnd();
 
-        try {
-            CqlResult cqlResult = response.getResult();
-            StringBuilder _response = new StringBuilder();
-            List<CqlRow> rows= cqlResult.getRows();
-            if(rows != null) {
-                if(rows.size() == 0) {
-                    _response.append(EMPTY_STRING);
-                }
-                for(CqlRow row : cqlResult.getRows()) {
-                    _response.append(LINE);
-					_response.append(SEPARATOR);
-                    _response.append("key: ");
-                    _response.append(new String(row.getKey()));
-                    _response.append(SEPARATOR);
-                    for(Column col : row.getColumns()) {
-                        _response.append(new String(col.getName()));
-                        _response.append(" : ");
-                        _response.append(new String(col.getValue()));
-                        _response.append(SEPARATOR);
-                    }
-                    _response.append(SEPARATOR);
-                }
-            } else _response.append(NULL_STRING);
-            this.result.setResponseData(_response.toString().getBytes());
-            this.result.setSuccessful(true);
-        } catch (InvalidRequestException e) {
-            this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
-            this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
-            this.result.setSuccessful(false);
-        } catch (UnavailableException e) {
-            this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
-            this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
-            this.result.setSuccessful(false);
-        } catch (TimedOutException e) {
-            this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
-            this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
-            this.result.setSuccessful(false);
-        } catch (SchemaDisagreementException e) {
-            this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
-            this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
-            this.result.setSuccessful(false);
-        } catch (TException e) {
-            this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
-            this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
-            this.result.setSuccessful(false);
-        } finally {
-            try {
-                pool.releaseInstance(instance_id);
-            } catch (InterruptedException e) {
-                log.warn("cannot release instance. I'll destroy him! ", e);
-                pool.destroyInstance(instance_id);
-            }
-            if(notifyOnlyArgentumListeners) ArgentumListener.sampleOccured(new SampleEvent(this.result, null));
-            else while(!queue.add(this.result)) {}
-        }
+			try {
+				CqlResult cqlResult = response.getResult();
+				StringBuilder _response = new StringBuilder();
+				List<CqlRow> rows= cqlResult.getRows();
+				if(rows != null) {
+					if(rows.size() == 0) {
+						_response.append(EMPTY_STRING);
+					}
+					for(CqlRow row : cqlResult.getRows()) {
+						_response.append(LINE);
+						_response.append(SEPARATOR);
+						_response.append("key: ");
+						_response.append(new String(row.getKey()));
+						_response.append(SEPARATOR);
+						for(Column col : row.getColumns()) {
+							_response.append(new String(col.getName()));
+							_response.append(" : ");
+							_response.append(new String(col.getValue()));
+							_response.append(SEPARATOR);
+						}
+						_response.append(SEPARATOR);
+					}
+				} else _response.append(NULL_STRING);
+				this.result.setResponseData(_response.toString().getBytes());
+//				this.result.setResponseData(cqlResult.toString().getBytes(Charset.defaultCharset()));
+				this.result.setSuccessful(true);
+				this.result.setResponseCodeOK();
+			} catch (InvalidRequestException e) {
+				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
+				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
+				this.result.setSuccessful(false);
+			} catch (UnavailableException e) {
+				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
+				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
+				this.result.setSuccessful(false);
+			} catch (TimedOutException e) {
+				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
+				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
+				this.result.setSuccessful(false);
+			} catch (SchemaDisagreementException e) {
+				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
+				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
+				this.result.setSuccessful(false);
+			} catch (TException e) {
+				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
+				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
+				this.result.setSuccessful(false);
+			} finally {
+				try {
+					pool.releaseInstance(instance_id);
+				} catch (InterruptedException e) {
+					log.warn("cannot release instance. I'll destroy him! ", e);
+					pool.destroyInstance(instance_id);
+				}
+				if(notifyOnlyArgentumListeners) ArgentumListener.sampleOccured(new SampleEvent(this.result, null));
+				else while(!queue.add(this.result)) {}
+				query.clear();
+			}
+		} catch (Exception e) {
+			log.warn("onComplete exc", e);
+		}
     }
 
     @Override
     public void onError(Exception e) {
-        this.result.sampleEnd();
-        this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
-        this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
-        this.result.setSuccessful(false);
+		try{
+			this.result.sampleEnd();
+			this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
+			this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
+			this.result.setSuccessful(false);
 
-        pool.destroyInstance(instance_id);
+			pool.destroyInstance(instance_id);
 
-        while(!queue.add(this.result)) {}
+			while(!queue.add(this.result)) {}
+			log.warn("inner onError exception", e);
+		} catch (Exception e1) {
+			log.warn("onError exception" ,e1);
+		} finally {
+			query.clear();
+		}
     }
 }
