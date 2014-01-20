@@ -5,6 +5,7 @@ import me.schiz.jmeter.protocol.technetium.pool.NetflixUtils;
 import me.schiz.jmeter.protocol.technetium.pool.TcPool;
 import me.schiz.jmeter.protocol.technetium.samplers.TcCQL3StatementSampler;
 import org.apache.cassandra.thrift.*;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.jmeter.samplers.SampleEvent;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jorphan.logging.LoggingManager;
@@ -64,10 +65,14 @@ public class TcCQL3StatementCallback implements AsyncMethodCallback<Cassandra.As
 						_response.append(new String(row.getKey()));
 						_response.append(SEPARATOR);
 						for(Column col : row.getColumns()) {
-							_response.append(new String(col.getName()));
-							_response.append(" : ");
-							_response.append(new String(col.getValue()));
-							_response.append(SEPARATOR);
+							if(col.isSetValue() && col.isSetName())	{
+
+								_response.append(new String(col.getName()));
+								_response.append(" : ");
+								_response.append(new String(Hex.encodeHex(col.getValue())));
+								//_response.append(new String(col.getValue()));
+								_response.append(SEPARATOR);
+							}
 						}
 						_response.append(SEPARATOR);
 					}
@@ -80,28 +85,38 @@ public class TcCQL3StatementCallback implements AsyncMethodCallback<Cassandra.As
 				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
 				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
 				this.result.setSuccessful(false);
+				log.error("<" + instance_id + "> " +  NetflixUtils.getStackTrace(e));
 			} catch (UnavailableException e) {
 				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
 				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
 				this.result.setSuccessful(false);
+				log.error("<" + instance_id + "> " +  NetflixUtils.getStackTrace(e));
 			} catch (TimedOutException e) {
 				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
 				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
 				this.result.setSuccessful(false);
+				log.error("<" + instance_id + "> " +  NetflixUtils.getStackTrace(e));
 			} catch (SchemaDisagreementException e) {
 				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
 				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
 				this.result.setSuccessful(false);
+				log.error("<" + instance_id + "> " +  NetflixUtils.getStackTrace(e));
 			} catch (TException e) {
 				this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
 				this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
 				this.result.setSuccessful(false);
+				log.error("<" + instance_id + "> " +  NetflixUtils.getStackTrace(e));
 			} finally {
-				try {
-					pool.releaseInstance(instance_id);
-				} catch (InterruptedException e) {
-					log.warn("cannot release instance. I'll destroy him! ", e);
+				if(this.result.isResponseCodeOK()) {
+					try {
+						pool.releaseInstance(instance_id);
+					} catch (InterruptedException e) {
+						log.warn("cannot release instance. I'll destroy him! ", e);
+						pool.destroyInstance(instance_id);
+					}
+				} else {
 					pool.destroyInstance(instance_id);
+					log.error("<" + instance_id + "> died");
 				}
 				if(notifyOnlyArgentumListeners) ArgentumListener.sampleOccured(new SampleEvent(this.result, null));
 				else while(!queue.add(this.result)) {}
@@ -119,7 +134,7 @@ public class TcCQL3StatementCallback implements AsyncMethodCallback<Cassandra.As
 			this.result.setResponseData(NetflixUtils.getStackTrace(e).getBytes());
 			this.result.setResponseCode(TcCQL3StatementSampler.ERROR_RC);
 			this.result.setSuccessful(false);
-
+			log.error("<" + instance_id + "> " + NetflixUtils.getStackTrace(e));
 			pool.destroyInstance(instance_id);
 
 			while(!queue.add(this.result)) {}

@@ -1,6 +1,9 @@
 package me.schiz.jmeter.protocol.technetium.pool;
 
+import org.apache.thrift.TException;
 import org.apache.thrift.async.TAsyncClientManager;
+import org.apache.thrift.async.TAsyncMethodCall;
+import org.apache.thrift.protocol.TProtocol;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,8 +25,9 @@ public class TcClientManagerPool {
     }
 
     public void shutdown() {
-        for(TAsyncClientManager clientManager : managersList) {
-            clientManager.stop();
-        }
+		// delete code because in reality clientManager has Closeable interface and selectorThread is daemon.
+//        for(TAsyncClientManager clientManager : managersList) {
+//            clientManager.stop();
+//		}
     }
 }

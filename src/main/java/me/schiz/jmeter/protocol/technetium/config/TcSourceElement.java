@@ -104,7 +104,7 @@ public class TcSourceElement extends ConfigTestElement
         if(pools.contains(source))  log.warn("TcSource `" +  source + "` already created");
         else {
             try {
-                pools.put(source, new TcPool(getKeyspace() ,maxSelectors, maxInstances, timeout));
+                pools.put(source, new TcPool(getKeyspace(), maxSelectors, maxInstances, timeout));
 
                 //add hosts for pool
                 for(AbstractMap.SimpleEntry<String, Integer> row : getHostsAsEntries()) {

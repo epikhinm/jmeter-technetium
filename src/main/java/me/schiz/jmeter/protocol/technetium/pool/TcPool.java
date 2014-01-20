@@ -111,9 +111,9 @@ public class TcPool {
     }
 
     public void shutdown() {
-        for(int i =0;i<maxInstances;i++) {
-			destroyInstance(i);
-		}
-        this.managersPool.shutdown();
+//        for(int i =0;i<maxInstances;i++) {
+//			destroyInstance(i);
+//		}
+//        this.managersPool.shutdown();
     }
 }
